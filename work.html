@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>업무지원 요청 현황 대시보드</title>
+<style>
+  :root {
+    --bg: #f3f6f9;
+    --panel: #ffffff;
+    --ink: #17212b;
+    --muted: #667585;
+    --line: #dfe6ec;
+    --navy: #17324d;
+    --navy-2: #244a6b;
+    --blue: #3a6f9b;
+    --soft-blue: #eaf1f7;
+    --green: #2f6b54;
+    --soft-green: #eaf4ef;
+    --amber: #8a6421;
+    --soft-amber: #f8f1df;
+    --red: #8b3b3b;
+    --soft-red: #f8eaea;
+    --shadow: 0 4px 16px rgba(17, 38, 58, 0.06);
+    --cat-edu: #4f6f8f;
+    --cat-it: #526f63;
+    --cat-doc: #806c56;
+    --soft-cat-edu: #eaf0f6;
+    --soft-cat-it: #eaf2ee;
+    --soft-cat-doc: #f3eee8;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: "Pretendard", "Noto Sans KR", "Malgun Gothic", Arial, sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+  }
+
+  .app-shell { min-height: 100vh; }
+  .topbar {
+    background: var(--navy);
+    color: #fff;
+    padding: 18px 28px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid rgba(255,255,255,.1);
+  }
+  .topbar h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.3px; }
+  .topbar .meta { font-size: 12px; opacity: .78; }
+
+  main { max-width: 1440px; margin: 0 auto; padding: 22px 24px 32px; }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .kpi-card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 18px 20px;
+    min-height: 104px;
+  }
+  .kpi-label { font-size: 13px; color: var(--muted); margin-bottom: 9px; font-weight: 600; }
+  .kpi-value { display: flex; align-items: baseline; gap: 5px; }
+  .kpi-value strong { font-size: 30px; line-height: 1; color: var(--navy); }
+  .kpi-value span { font-size: 13px; color: var(--muted); }
+  .kpi-card.alert .kpi-value strong { color: var(--red); }
+
+  .chart-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .panel-head {
+    padding: 16px 18px 10px;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    align-items: center;
+  }
+  .panel-title { font-weight: 700; font-size: 15px; color: var(--navy); }
+  .panel-sub { font-size: 12px; color: var(--muted); }
+  .chart-body { padding: 6px 18px 18px; min-height: 190px; }
+
+  .bar-row { display: grid; grid-template-columns: 74px 1fr 42px; gap: 10px; align-items: center; margin: 15px 0; }
+  .bar-label { font-size: 13px; color: #334455; font-weight: 600; }
+  .bar-track { height: 20px; border-radius: 4px; background: #eef2f5; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--blue); border-radius: 4px; transition: width .15s ease; }
+  .bar-fill.cat-edu { background: var(--cat-edu); }
+  .bar-fill.cat-it { background: var(--cat-it); }
+  .bar-fill.cat-doc { background: var(--cat-doc); }
+  .bar-value { text-align: right; font-size: 13px; font-weight: 700; color: var(--navy); }
+  .urgency-bar-wrap { position: relative; overflow: visible; }
+  .urgency-bar-fill { background: #7b8794; cursor: default; }
+  .urgency-bar-fill.high { background: var(--red); cursor: pointer; }
+  .urgency-bar-fill.normal { background: #6f7f90; }
+  .urgency-bar-fill.low { background: #7f9287; }
+  .urgency-tooltip {
+    display: none; position: absolute; z-index: 20; left: 50%; top: calc(100% + 8px); transform: translateX(-50%);
+    width: min(360px, 86vw); padding: 11px 12px; border: 1px solid #d8c1bc; border-radius: 7px;
+    background: #fff; box-shadow: 0 8px 24px rgba(17,38,58,.14); color: var(--ink); font-size: 12px; line-height: 1.5;
+  }
+  .urgency-tooltip.visible { display: block; }
+  .urgency-tooltip strong { display:block; color: var(--red); margin-bottom: 6px; }
+  .urgency-tooltip ul { margin: 0; padding-left: 17px; }
+  .urgency-tooltip li + li { margin-top: 4px; }
+  @media (hover: hover) and (pointer: fine) {
+    .urgency-bar-wrap:hover .urgency-tooltip { display: block; }
+  }
+
+  .donut-wrap { display: flex; gap: 28px; align-items: center; justify-content: center; min-height: 160px; }
+  .donut {
+    width: 138px; height: 138px; border-radius: 50%; position: relative;
+    background: conic-gradient(var(--green) 0 58.33%, var(--blue) 58.33% 83.33%, var(--amber) 83.33% 100%);
+  }
+  .donut::after { content: ""; position: absolute; inset: 27px; border-radius: 50%; background: #fff; }
+  .donut-center { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; text-align: center; pointer-events: none; }
+  .donut-center strong { font-size: 25px; color: var(--navy); }
+  .donut-center small { display:block; color: var(--muted); font-size: 11px; margin-top: 2px; }
+  .legend { display: grid; gap: 10px; min-width: 140px; }
+  .legend-item { display: grid; grid-template-columns: 10px 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .dot.complete { background: var(--green); }
+  .dot.progress { background: var(--blue); }
+  .dot.waiting { background: var(--amber); }
+  .legend-count { font-weight: 700; color: var(--navy); }
+
+  .toolbar { padding: 14px 16px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 180px 180px minmax(240px, 1fr) auto auto auto; gap: 10px; align-items: center; }
+  select, input[type="search"] {
+    width: 100%; height: 38px; border: 1px solid #cfd8e1; border-radius: 6px; background: #fff; color: var(--ink); padding: 0 11px; font-size: 13px; outline: none;
+  }
+  select:focus, input[type="search"]:focus { border-color: #6f92b1; box-shadow: 0 0 0 2px rgba(58,111,155,.10); }
+  .check-wrap { height: 38px; display: flex; align-items: center; gap: 7px; padding: 0 10px; border: 1px solid #cfd8e1; border-radius: 6px; background: #fff; white-space: nowrap; font-size: 13px; color: #3b4b5b; }
+  .check-wrap input { accent-color: var(--navy); }
+  .btn { height: 38px; border: 1px solid #b8c5d0; border-radius: 6px; padding: 0 15px; background: #fff; color: var(--navy); font-weight: 700; cursor: pointer; }
+  .btn:hover { background: #f7f9fb; }
+  .btn.primary { background: var(--navy); border-color: var(--navy); color: #fff; }
+  .btn.primary:hover { background: var(--navy-2); }
+
+  .report-panel { display: none; margin-top: 16px; }
+  .report-panel.visible { display: block; }
+  .report-body { padding: 2px 18px 18px; }
+  .report-summary {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 8px 0 18px;
+  }
+  .report-stat { background: #f7f9fb; border: 1px solid var(--line); border-radius: 8px; padding: 13px 14px; }
+  .report-stat .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .report-stat .value { font-size: 22px; font-weight: 800; color: var(--navy); }
+  .report-stat.alert .value { color: var(--red); }
+  .report-stat.clickable { cursor: pointer; transition: border-color .12s ease, background .12s ease; }
+  .report-stat.clickable:hover, .report-stat.clickable:focus-visible { border-color: #c98d83; background: #fff5f2; outline: none; }
+  .report-stat.clickable .hint { display:block; margin-top:5px; font-size:10px; color:var(--muted); font-weight:600; }
+  .urgent-detail { display:none; margin-top:14px; border:1px solid #ecd2cc; border-radius:8px; background:#fffaf9; overflow:hidden; }
+  .urgent-detail.visible { display:block; }
+  .urgent-detail-head { padding:11px 13px; background:#fbefec; font-size:12px; font-weight:800; color:var(--red); border-bottom:1px solid #ecd2cc; }
+  .urgent-detail-item { padding:11px 13px; border-bottom:1px solid #f1dfdb; font-size:12px; line-height:1.55; }
+  .urgent-detail-item:last-child { border-bottom:0; }
+  .urgent-detail-item strong { color:var(--navy); }
+  .detail-meta { margin-top:3px; color:var(--muted); font-size:11px; }
+  .report-section-title { margin: 0 0 9px; font-size: 13px; color: #425365; font-weight: 800; }
+  .report-category-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .report-category-item { display: flex; justify-content: space-between; gap: 12px; padding: 11px 12px; border: 1px solid var(--line); border-radius: 7px; background: #fff; font-size: 13px; }
+  .report-category-item strong { color: var(--navy); }
+  .report-filter-note { font-size: 12px; color: var(--muted); margin-top: 13px; line-height: 1.6; }
+
+
+  .table-meta { padding: 12px 16px 8px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .table-meta .count { font-size: 13px; color: var(--muted); }
+  .table-wrap { overflow-x: auto; padding: 0 16px 16px; }
+  table { width: 100%; border-collapse: collapse; min-width: 920px; }
+  th { text-align: left; padding: 11px 10px; font-size: 12px; color: #526274; background: #f6f8fa; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  td { padding: 12px 10px; font-size: 13px; border-bottom: 1px solid #edf1f4; vertical-align: middle; }
+  tbody tr:hover { background: #fafcfd; }
+  tbody tr.urgent-open-row { background: #fff7f5; box-shadow: inset 4px 0 0 var(--red); }
+  tbody tr.urgent-open-row:hover { background: #fff1ee; }
+  tbody tr.urgent-open-row td { border-bottom-color: #f2d8d2; }
+  .urgent-open-flag {
+    display: inline-flex; align-items: center; margin-left: 8px; padding: 2px 6px;
+    border-radius: 4px; background: var(--soft-red); color: var(--red);
+    font-size: 10px; font-weight: 800; letter-spacing: -.01em; vertical-align: middle;
+  }
+  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  .badge { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .badge.complete { color: var(--green); background: var(--soft-green); }
+  .badge.progress { color: var(--blue); background: var(--soft-blue); }
+  .badge.waiting { color: var(--amber); background: var(--soft-amber); }
+  .badge.high { color: var(--red); background: var(--soft-red); }
+  .badge.normal { color: #536273; background: #eef2f5; }
+  .badge.low { color: #617067; background: #eef4f0; }
+  .category-badge { display:inline-flex; align-items:center; min-height:24px; padding:3px 9px; border-radius:5px; font-size:11px; font-weight:800; }
+  .category-badge.cat-edu { color:var(--cat-edu); background:var(--soft-cat-edu); }
+  .category-badge.cat-it { color:var(--cat-it); background:var(--soft-cat-it); }
+  .category-badge.cat-doc { color:var(--cat-doc); background:var(--soft-cat-doc); }
+  .deadline-input { width:132px; height:32px; border:1px solid #cfd8e1; border-radius:5px; background:#fff; color:var(--ink); padding:0 7px; font-size:12px; }
+  .deadline-input:focus { border-color:#6f92b1; box-shadow:0 0 0 2px rgba(58,111,155,.10); outline:none; }
+  .deadline-empty { color:var(--muted); font-size:12px; }
+  .empty { text-align:center; padding: 34px 10px; color: var(--muted); }
+  .footer-note { color: #7a8794; font-size: 11px; margin-top: 10px; text-align: right; }
+
+  @media (max-width: 1050px) {
+    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .chart-grid { grid-template-columns: 1fr; }
+    .toolbar { grid-template-columns: 1fr 1fr; }
+    .toolbar .search { grid-column: 1 / -1; }
+    .report-summary { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 620px) {
+    main { padding: 14px 12px 24px; }
+    .topbar { padding: 15px 14px; }
+    .topbar .meta { display:none; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .kpi-card { padding: 15px; min-height: 92px; }
+    .kpi-value strong { font-size: 25px; }
+    .toolbar { grid-template-columns: 1fr; }
+    .toolbar .search { grid-column: auto; }
+    .donut-wrap { flex-direction: column; gap: 18px; }
+    .report-summary, .report-category-list { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <h1>업무지원 요청 현황 대시보드</h1>
+    <div class="meta">내부 업무지원 요청 데이터 · 2026.07–08</div>
+  </header>
+
+  <main>
+    <section class="kpi-grid" aria-label="주요 지표">
+      <article class="kpi-card"><div class="kpi-label">전체 요청</div><div class="kpi-value"><strong id="kpiTotal">0</strong><span>건</span></div></article>
+      <article class="kpi-card"><div class="kpi-label">완료</div><div class="kpi-value"><strong id="kpiComplete">0</strong><span>건</span></div></article>
+      <article class="kpi-card"><div class="kpi-label">처리중/대기</div><div class="kpi-value"><strong id="kpiOpen">0</strong><span>건</span></div></article>
+      <article class="kpi-card alert"><div class="kpi-label">긴급 미완료</div><div class="kpi-value"><strong id="kpiUrgentOpen">0</strong><span>건</span></div></article>
+    </section>
+
+    <section class="chart-grid">
+      <article class="panel">
+        <div class="panel-head"><div><div class="panel-title">업무분류별 요청건수</div><div class="panel-sub">현재 필터 기준</div></div></div>
+        <div class="chart-body" id="categoryChart"></div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><div><div class="panel-title">상태별 요청건수</div><div class="panel-sub">현재 필터 기준</div></div></div>
+        <div class="chart-body">
+          <div class="donut-wrap">
+            <div class="donut" id="statusDonut"><div class="donut-center"><div><strong id="donutTotal">0</strong><small>요청</small></div></div></div>
+            <div class="legend" id="statusLegend"></div>
+          </div>
+        </div>
+      </article>
+
+      <article class="panel">
+        <div class="panel-head"><div><div class="panel-title">긴급도별 요청건수</div><div class="panel-sub">‘상’ 막대에 마우스를 올리거나 클릭하면 요청내용 표시</div></div></div>
+        <div class="chart-body" id="urgencyChart"></div>
+      </article>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head"><div><div class="panel-title">전체 요청 목록</div><div class="panel-sub">필터와 검색 결과가 실시간 반영됩니다.</div></div></div>
+      <div class="toolbar">
+        <select id="categoryFilter" aria-label="업무분류 필터">
+          <option value="">업무분류 전체</option>
+          <option value="교육">교육</option>
+          <option value="IT">IT</option>
+          <option value="문서">문서</option>
+        </select>
+        <select id="statusFilter" aria-label="상태 필터">
+          <option value="">상태 전체</option>
+          <option value="완료">완료</option>
+          <option value="처리중">처리중</option>
+          <option value="대기">대기</option>
+        </select>
+        <input class="search" id="searchInput" type="search" placeholder="요청 ID 또는 요청내용 검색" aria-label="검색" />
+        <label class="check-wrap"><input id="urgentOnly" type="checkbox" /> 긴급 미완료만 보기</label>
+        <button class="btn primary" id="reportBtn" type="button">요약 보고서 만들기</button>
+        <button class="btn" id="resetBtn" type="button">초기화</button>
+      </div>
+      <div class="table-meta"><div class="count" id="resultCount">0건 표시</div></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>요청 ID</th><th>요청일</th><th>업무분류</th><th>요청내용</th><th>긴급도</th><th>상태</th><th>처리기한</th><th>AI 처리구분</th></tr></thead>
+          <tbody id="requestTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel report-panel" id="summaryReport" aria-live="polite">
+      <div class="panel-head">
+        <div>
+          <div class="panel-title">요약 보고서</div>
+          <div class="panel-sub">현재 필터링된 데이터 기준</div>
+        </div>
+      </div>
+      <div class="report-body" id="summaryReportBody"></div>
+    </section>
+
+    <div class="footer-note">※ 화면의 모든 수치는 내장된 업무지원 요청 데이터의 현재 필터 결과를 기준으로 계산됩니다.</div>
+  </main>
+</div>
+
+<script>
+const requests = [
+  {request_id:"REQ-001",request_date:"2026-07-02",category:"교육",summary:"교육 신청 방법 문의",urgency:"보통",status:"완료",ai_handling:"전용AI가능"},
+  {request_id:"REQ-002",request_date:"2026-07-04",category:"IT",summary:"사내 시스템 접속 오류 문의",urgency:"상",status:"처리중",ai_handling:"전용AI가능"},
+  {request_id:"REQ-003",request_date:"2026-07-09",category:"문서",summary:"주간보고 서식 요청",urgency:"보통",status:"완료",ai_handling:"전용AI가능"},
+  {request_id:"REQ-004",request_date:"2026-07-15",category:"교육",summary:"교육 일정 변경 문의",urgency:"보통",status:"대기",ai_handling:"비식별후"},
+  {request_id:"REQ-005",request_date:"2026-07-22",category:"IT",summary:"비밀번호 초기화 절차 문의",urgency:"상",status:"완료",ai_handling:"사용금지"},
+  {request_id:"REQ-006",request_date:"2026-08-01",category:"문서",summary:"회의록 요약 형식 문의",urgency:"하",status:"완료",ai_handling:"전용AI가능"},
+  {request_id:"REQ-007",request_date:"2026-08-05",category:"교육",summary:"수료증 발급 절차 문의",urgency:"보통",status:"처리중",ai_handling:"전용AI가능"},
+  {request_id:"REQ-008",request_date:"2026-08-08",category:"IT",summary:"브라우저 호환성 문의",urgency:"보통",status:"완료",ai_handling:"전용AI가능"},
+  {request_id:"REQ-009",request_date:"2026-08-11",category:"교육",summary:"과정 검색 방법 문의",urgency:"하",status:"완료",ai_handling:"전용AI가능"},
+  {request_id:"REQ-010",request_date:"2026-08-14",category:"문서",summary:"보고서 제목 규칙 문의",urgency:"보통",status:"대기",ai_handling:"비식별후"},
+  {request_id:"REQ-011",request_date:"2026-08-16",category:"IT",summary:"권한 신청 절차 문의",urgency:"상",status:"처리중",ai_handling:"사용금지"},
+  {request_id:"REQ-012",request_date:"2026-08-18",category:"교육",summary:"교육 만족도 제출 방법 문의",urgency:"하",status:"완료",ai_handling:"전용AI가능"}
+];
+
+const els = {
+  categoryFilter: document.getElementById('categoryFilter'),
+  statusFilter: document.getElementById('statusFilter'),
+  searchInput: document.getElementById('searchInput'),
+  urgentOnly: document.getElementById('urgentOnly'),
+  reportBtn: document.getElementById('reportBtn'),
+  resetBtn: document.getElementById('resetBtn'),
+  tableBody: document.getElementById('requestTableBody'),
+  resultCount: document.getElementById('resultCount'),
+  categoryChart: document.getElementById('categoryChart'),
+  statusDonut: document.getElementById('statusDonut'),
+  statusLegend: document.getElementById('statusLegend'),
+  urgencyChart: document.getElementById('urgencyChart'),
+  donutTotal: document.getElementById('donutTotal'),
+  kpiTotal: document.getElementById('kpiTotal'),
+  kpiComplete: document.getElementById('kpiComplete'),
+  kpiOpen: document.getElementById('kpiOpen'),
+  kpiUrgentOpen: document.getElementById('kpiUrgentOpen'),
+  summaryReport: document.getElementById('summaryReport'),
+  summaryReportBody: document.getElementById('summaryReportBody')
+};
+
+function isOpen(row) { return row.status === '처리중' || row.status === '대기'; }
+function isUrgentOpen(row) { return row.urgency === '상' && isOpen(row); }
+function escapeHtml(value) {
+  return String(value).replace(/[&<>'"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[ch]));
+}
+
+const DEADLINE_STORAGE_KEY = 'workSupportDeadlinesV1';
+let deadlines = {};
+try { deadlines = JSON.parse(localStorage.getItem(DEADLINE_STORAGE_KEY) || '{}') || {}; } catch (e) { deadlines = {}; }
+function saveDeadlines() { localStorage.setItem(DEADLINE_STORAGE_KEY, JSON.stringify(deadlines)); }
+function categoryClass(value) { return value === '교육' ? 'cat-edu' : value === 'IT' ? 'cat-it' : 'cat-doc'; }
+function categoryBadge(value) { return `<span class="category-badge ${categoryClass(value)}">${escapeHtml(value)}</span>`; }
+function deadlineValue(row) { return deadlines[row.request_id] || ''; }
+
+function getFilteredData() {
+  const category = els.categoryFilter.value;
+  const status = els.statusFilter.value;
+  const query = els.searchInput.value.trim().toLowerCase();
+  const urgentOnly = els.urgentOnly.checked;
+
+  return requests.filter(row => {
+    if (category && row.category !== category) return false;
+    if (status && row.status !== status) return false;
+    if (urgentOnly && !isUrgentOpen(row)) return false;
+    if (query) {
+      const haystack = `${row.request_id} ${row.summary}`.toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+    return true;
+  });
+}
+
+function updateKpis(data) {
+  els.kpiTotal.textContent = data.length;
+  els.kpiComplete.textContent = data.filter(r => r.status === '완료').length;
+  els.kpiOpen.textContent = data.filter(isOpen).length;
+  els.kpiUrgentOpen.textContent = data.filter(isUrgentOpen).length;
+}
+
+function updateCategoryChart(data) {
+  const cats = ['교육', 'IT', '문서'];
+  const counts = Object.fromEntries(cats.map(c => [c, data.filter(r => r.category === c).length]));
+  const max = Math.max(1, ...Object.values(counts));
+  els.categoryChart.innerHTML = cats.map(c => {
+    const count = counts[c];
+    const width = (count / max) * 100;
+    return `<div class="bar-row"><div class="bar-label">${categoryBadge(c)}</div><div class="bar-track"><div class="bar-fill ${categoryClass(c)}" style="width:${width}%"></div></div><div class="bar-value">${count}건</div></div>`;
+  }).join('');
+}
+
+function updateStatusChart(data) {
+  const items = [
+    {name:'완료', count:data.filter(r => r.status === '완료').length, cls:'complete', color:'var(--green)'},
+    {name:'처리중', count:data.filter(r => r.status === '처리중').length, cls:'progress', color:'var(--blue)'},
+    {name:'대기', count:data.filter(r => r.status === '대기').length, cls:'waiting', color:'var(--amber)'}
+  ];
+  const total = data.length;
+  els.donutTotal.textContent = total;
+
+  if (total === 0) {
+    els.statusDonut.style.background = '#eef2f5';
+  } else {
+    let cursor = 0;
+    const parts = items.map(item => {
+      const start = cursor;
+      const end = cursor + (item.count / total) * 100;
+      cursor = end;
+      return `${item.color} ${start}% ${end}%`;
+    });
+    els.statusDonut.style.background = `conic-gradient(${parts.join(',')})`;
+  }
+
+  els.statusLegend.innerHTML = items.map(item => `
+    <div class="legend-item"><span class="dot ${item.cls}"></span><span>${item.name}</span><span class="legend-count">${item.count}건</span></div>
+  `).join('');
+}
+
+function updateUrgencyChart(data) {
+  const levels = ['상', '보통', '하'];
+  const counts = Object.fromEntries(levels.map(level => [level, data.filter(r => r.urgency === level).length]));
+  const max = Math.max(1, ...Object.values(counts));
+  const highRows = data.filter(r => r.urgency === '상');
+
+  els.urgencyChart.innerHTML = levels.map(level => {
+    const count = counts[level];
+    const width = (count / max) * 100;
+    const cls = level === '상' ? 'high' : level === '보통' ? 'normal' : 'low';
+    const detail = level === '상' ? `
+      <div class="urgency-tooltip" role="tooltip">
+        <strong>긴급도 ‘상’ 요청내용 (${highRows.length}건)</strong>
+        ${highRows.length ? `<ul>${highRows.map(r => `<li><span class="mono">${escapeHtml(r.request_id)}</span> · ${escapeHtml(r.summary)} <span style="color:var(--muted)">(${escapeHtml(r.status)})</span></li>`).join('')}</ul>` : '<div>현재 조건에 해당하는 요청이 없습니다.</div>'}
+      </div>` : '';
+    return `<div class="bar-row">
+      <div class="bar-label">${escapeHtml(level)}</div>
+      <div class="bar-track urgency-bar-wrap">
+        <div class="bar-fill urgency-bar-fill ${cls}" data-urgency="${escapeHtml(level)}" style="width:${width}%" ${level === '상' ? 'tabindex="0" role="button" aria-label="긴급도 상 요청내용 보기" aria-expanded="false"' : ''}></div>
+        ${detail}
+      </div>
+      <div class="bar-value">${count}건</div>
+    </div>`;
+  }).join('');
+}
+
+function urgencyBadge(value) {
+  const cls = value === '상' ? 'high' : value === '보통' ? 'normal' : 'low';
+  return `<span class="badge ${cls}">${escapeHtml(value)}</span>`;
+}
+function statusBadge(value) {
+  const cls = value === '완료' ? 'complete' : value === '처리중' ? 'progress' : 'waiting';
+  return `<span class="badge ${cls}">${escapeHtml(value)}</span>`;
+}
+
+function updateTable(data) {
+  els.resultCount.textContent = `${data.length}건 표시`;
+  if (!data.length) {
+    els.tableBody.innerHTML = `<tr><td colspan="8" class="empty">조건에 맞는 요청이 없습니다.</td></tr>`;
+    return;
+  }
+  els.tableBody.innerHTML = data.map(row => {
+    const urgentOpen = isUrgentOpen(row);
+    return `
+    <tr class="${urgentOpen ? 'urgent-open-row' : ''}"${urgentOpen ? ' aria-label="긴급 미완료 요청"' : ''}>
+      <td class="mono">${escapeHtml(row.request_id)}${urgentOpen ? '<span class="urgent-open-flag">긴급 미완료</span>' : ''}</td>
+      <td>${escapeHtml(row.request_date)}</td>
+      <td>${categoryBadge(row.category)}</td>
+      <td>${escapeHtml(row.summary)}</td>
+      <td>${urgencyBadge(row.urgency)}</td>
+      <td>${statusBadge(row.status)}</td>
+      <td>${row.status !== '완료' ? `<input class="deadline-input" type="date" data-request-id="${escapeHtml(row.request_id)}" value="${escapeHtml(deadlineValue(row))}" aria-label="${escapeHtml(row.request_id)} 처리기한" />` : `<span class="deadline-empty">-</span>`}</td>
+      <td>${escapeHtml(row.ai_handling)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function getFilterDescription() {
+  const parts = [];
+  if (els.categoryFilter.value) parts.push(`업무분류: ${els.categoryFilter.value}`);
+  if (els.statusFilter.value) parts.push(`상태: ${els.statusFilter.value}`);
+  if (els.searchInput.value.trim()) parts.push(`검색: “${els.searchInput.value.trim()}”`);
+  if (els.urgentOnly.checked) parts.push('긴급 미완료만 보기');
+  return parts.length ? parts.join(' · ') : '필터 없음 (전체 데이터)';
+}
+
+function updateSummaryReport(data) {
+  const total = data.length;
+  const complete = data.filter(r => r.status === '완료').length;
+  const incomplete = data.filter(r => r.status !== '완료').length;
+  const urgentIncomplete = data.filter(r => r.urgency === '상' && r.status !== '완료').length;
+  const categories = ['교육', 'IT', '문서'].map(category => ({
+    category,
+    count: data.filter(r => r.category === category).length
+  }));
+
+  els.summaryReportBody.innerHTML = `
+    <div class="report-summary">
+      <div class="report-stat"><div class="label">전체 건수</div><div class="value">${total}건</div></div>
+      <div class="report-stat"><div class="label">완료 건수</div><div class="value">${complete}건</div></div>
+      <div class="report-stat"><div class="label">미완료 건수</div><div class="value">${incomplete}건</div></div>
+      <div class="report-stat alert clickable" id="urgentReportStat" role="button" tabindex="0" aria-expanded="false"><div class="label">긴급 미완료 건수</div><div class="value">${urgentIncomplete}건</div><span class="hint">클릭하여 요청내용 보기</span></div>
+    </div>
+    <div class="report-section-title">업무분류별 건수</div>
+    <div class="report-category-list">
+      ${categories.map(item => `<div class="report-category-item"><span>${categoryBadge(item.category)}</span><strong>${item.count}건</strong></div>`).join('')}
+    </div>
+    <div class="report-filter-note"><strong>적용 조건</strong> · ${escapeHtml(getFilterDescription())}</div>
+    <div class="urgent-detail" id="urgentReportDetail">
+      <div class="urgent-detail-head">긴급 미완료 요청내용</div>
+      ${data.filter(r => r.urgency === '상' && r.status !== '완료').length ? data.filter(r => r.urgency === '상' && r.status !== '완료').map(r => `
+        <div class="urgent-detail-item">
+          <strong>${escapeHtml(r.request_id)}</strong> · ${escapeHtml(r.summary)}
+          <div class="detail-meta">업무분류 ${escapeHtml(r.category)} · 상태 ${escapeHtml(r.status)} · 처리기한 ${deadlineValue(r) ? escapeHtml(deadlineValue(r)) : '미입력'}</div>
+        </div>`).join('') : '<div class="urgent-detail-item">현재 조건에 해당하는 긴급 미완료 요청이 없습니다.</div>'}
+    </div>
+  `;
+
+  const urgentStat = document.getElementById('urgentReportStat');
+  const urgentDetail = document.getElementById('urgentReportDetail');
+  const toggleUrgentDetail = () => {
+    const visible = urgentDetail.classList.toggle('visible');
+    urgentStat.setAttribute('aria-expanded', String(visible));
+  };
+  urgentStat.addEventListener('click', toggleUrgentDetail);
+  urgentStat.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleUrgentDetail(); } });
+}
+
+function render() {
+  const data = getFilteredData();
+  updateKpis(data);
+  updateCategoryChart(data);
+  updateStatusChart(data);
+  updateUrgencyChart(data);
+  updateTable(data);
+  if (els.summaryReport.classList.contains('visible')) updateSummaryReport(data);
+}
+
+['change','input'].forEach(evt => {
+  els.categoryFilter.addEventListener(evt, render);
+  els.statusFilter.addEventListener(evt, render);
+  els.searchInput.addEventListener(evt, render);
+  els.urgentOnly.addEventListener(evt, render);
+});
+
+els.urgencyChart.addEventListener('click', e => {
+  const highBar = e.target.closest('.urgency-bar-fill.high');
+  if (!highBar) return;
+  const wrap = highBar.closest('.urgency-bar-wrap');
+  const tooltip = wrap.querySelector('.urgency-tooltip');
+  const visible = tooltip.classList.toggle('visible');
+  highBar.setAttribute('aria-expanded', String(visible));
+});
+
+els.urgencyChart.addEventListener('keydown', e => {
+  const highBar = e.target.closest('.urgency-bar-fill.high');
+  if (!highBar || (e.key !== 'Enter' && e.key !== ' ')) return;
+  e.preventDefault();
+  highBar.click();
+});
+
+els.tableBody.addEventListener('change', e => {
+  const input = e.target.closest('.deadline-input');
+  if (!input) return;
+  const id = input.dataset.requestId;
+  if (input.value) deadlines[id] = input.value; else delete deadlines[id];
+  saveDeadlines();
+  if (els.summaryReport.classList.contains('visible')) updateSummaryReport(getFilteredData());
+});
+
+els.reportBtn.addEventListener('click', () => {
+  const data = getFilteredData();
+  updateSummaryReport(data);
+  els.summaryReport.classList.add('visible');
+  els.summaryReport.scrollIntoView({behavior: 'smooth', block: 'start'});
+});
+
+els.resetBtn.addEventListener('click', () => {
+  els.categoryFilter.value = '';
+  els.statusFilter.value = '';
+  els.searchInput.value = '';
+  els.urgentOnly.checked = false;
+  render();
+  els.searchInput.focus();
+});
+
+render();
+</script>
+</body>
+</html>
